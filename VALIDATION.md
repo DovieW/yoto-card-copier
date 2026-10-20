@@ -2,6 +2,12 @@
 
 The underlying manual source-link / destination-copy workflow worked on a Samsung Galaxy S25 Ultra and a Yoto Mini running OS 2.23.3. That predates this app and is not an app hardware test.
 
+## Version 0.1.1
+
+- Simplified the screen to one instruction: Scan original, Scan blank, or Copied. Removed the explanatory sections, source link, copy counter, and extra navigation buttons. Next playlist is hidden until an original has been read.
+- Android build and lint passed. Updated APK installed successfully on the Samsung SM-S938U1, launched, and the minimal source screen was visually inspected.
+- NFC writing and verification code is unchanged from 0.1.0. Physical NFC copying still requires a hardware test.
+
 ## Version 0.1.0
 
 - 20 pure-Java memory-policy checks passed (capacity, TLV bounds, blank detection, supported chip variants, capability-container checks, and locked-tag refusal).

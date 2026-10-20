@@ -42,8 +42,8 @@ public final class MainActivity extends Activity implements NfcAdapter.ReaderCal
     private int copies;
     private volatile boolean active;
     private NfcAdapter adapter;
-    private TextView phase, heading, detail, source, count;
-    private Button next, yoto, replace;
+    private TextView step, heading, detail;
+    private Button next;
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
@@ -59,8 +59,8 @@ public final class MainActivity extends Activity implements NfcAdapter.ReaderCal
         buildUi();
         adapter = NfcAdapter.getDefaultAdapter(this);
         if (adapter == null) show("NFC unavailable", "This phone needs NFC to copy cards.", true);
-        else if (sourceMessage != null) show("Tap a blank card", "Your playlist is ready. Hold the destination steady until it turns green.", false);
-        else show("Tap your genuine card", "Link your playlist in Yoto first, then hold the genuine MYO card against this phone.", false);
+        else if (sourceMessage != null) show("Scan blank", "Hold a blank card against your phone.", false);
+        else show("Scan original", "Hold the linked genuine MYO card against your phone.", false);
     }
 
     private static final class Batch {
@@ -76,12 +76,15 @@ public final class MainActivity extends Activity implements NfcAdapter.ReaderCal
     @Override protected void onResume() {
         super.onResume(); active = true;
         if (adapter != null && adapter.isEnabled()) {
+            if (heading.getText().toString().equals("Turn on NFC"))
+                show(sourceMessage == null ? "Scan original" : "Scan blank",
+                    sourceMessage == null ? "Hold the linked genuine MYO card against your phone." : "Hold a blank card against your phone.", false);
             Bundle options = new Bundle(); options.putInt(NfcAdapter.EXTRA_READER_PRESENCE_CHECK_DELAY, 150);
             adapter.enableReaderMode(this, this,
                     NfcAdapter.FLAG_READER_NFC_A | NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK
                     | NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS, options);
         } else if (adapter != null) {
-            show("Turn on NFC", "Enable NFC in phone settings, then return here.", true);
+            show("Turn on NFC", "NFC is off.", true);
         }
     }
     @Override protected void onPause() {
@@ -105,7 +108,7 @@ public final class MainActivity extends Activity implements NfcAdapter.ReaderCal
                     byte[] header = read(nfc, 0), data = memory(nfc);
                     if (sourceMessage == null) {
                         byte[] message = TagMemory.message(data);
-                        if (message == null) throw new IOException("That card is blank. Scan the linked genuine MYO card first.");
+                        if (message == null) throw new IOException("Scan the genuine MYO card first.");
                         NdefRecord[] records = new NdefMessage(message).getRecords();
                         Uri uri = records.length == 1 ? records[0].toUri() : null;
                         if (uri == null || !"https".equals(uri.getScheme()) || !"yoto.io".equalsIgnoreCase(uri.getHost())
@@ -116,17 +119,17 @@ public final class MainActivity extends Activity implements NfcAdapter.ReaderCal
                         protectedSources.add(uid);
                         getPreferences(MODE_PRIVATE).edit().putStringSet("sources", new HashSet<>(protectedSources)).apply();
                         vibrate(70);
-                        show("Now tap a blank card", "Source captured. Set the genuine card aside and hold a different blank card here.", false);
+                        show("Scan blank", "Set the original aside. Hold a blank card here.", false);
                         return;
                     }
                     if (protectedSources.contains(uid)) {
-                        show("Genuine card protected", "This is a source card. Set it aside and tap a different blank card.", false);
+                        show("Scan blank", "That's the original. Use a blank card.", false);
                         return;
                     }
                     TagMemory.requireWritable(header);
                     byte[] packed = TagMemory.pack(sourceMessage);
                     if (Arrays.equals(packed, data) && Arrays.equals(Arrays.copyOfRange(header, 12, 16), TagMemory.CC)) {
-                        show("Already verified", "This card already contains the selected playlist. Tap another blank or choose Next playlist.", false);
+                        show("Copied", "This card already has the playlist.", false);
                         return;
                     }
                     if (!TagMemory.blank(data) && !uid.equals(pendingId) && !uid.equals(replacementId)) {
@@ -134,7 +137,7 @@ public final class MainActivity extends Activity implements NfcAdapter.ReaderCal
                         return;
                     }
                     pendingId = uid;
-                    show("Writing… keep it still", "Formatting, writing, and checking your card in one connection.", false);
+                    show("Copying…", "Keep the card still.", false);
                     // Invalidate NDEF length first; commit the first page only after the rest is written.
                     write(nfc, 4, new byte[]{3, 0, 0, 0});
                     for (int page = 5; page <= 15; page++)
@@ -147,15 +150,14 @@ public final class MainActivity extends Activity implements NfcAdapter.ReaderCal
                     if (!uid.equals(lastWritten)) copies++;
                     lastWritten = uid; pendingId = ""; replacementId = "";
                     vibrate(160);
-                    show("Copied & verified", "Remove this card. Tap another blank for the same playlist, or choose Next playlist.", false);
+                    show("Copied", "Remove this card.", false);
                 } finally { try { nfc.close(); } catch (IOException ignored) { } }
             }
         } catch (Exception e) {
             vibrate(250);
             String message = e.getMessage();
-            show("Try that card again", (message == null || message.trim().isEmpty()
-                    ? "Contact was lost. Hold the same card steadily against the NFC antenna." : message)
-                    + (pendingId.isEmpty() ? "" : "\nKeep the same destination card for the retry."), true);
+            show("Try again", (message == null || message.trim().isEmpty()
+                    ? "Hold the same card steadily against your phone." : message), true);
         } finally {
             busy.set(false);
             runOnUiThread(() -> controls(true));
@@ -181,13 +183,12 @@ public final class MainActivity extends Activity implements NfcAdapter.ReaderCal
     private void askReplace(String uid) {
         runOnUiThread(() -> {
             if (!active || isFinishing()) return;
-            new AlertDialog.Builder(this).setTitle("This card already has content")
-                .setMessage("Replace the contents of card …" + uid.substring(Math.max(0, uid.length() - 6))
-                        + " with " + playlist + "? Its current playlist link will be overwritten.")
-                .setNegativeButton("Keep existing card", (d, w) -> show("Tap a blank card", "The existing card was left unchanged.", false))
-                .setPositiveButton("Replace on next tap", (d, w) -> {
+            new AlertDialog.Builder(this).setTitle("Replace this card?")
+                .setMessage("Its current playlist will be overwritten.")
+                .setNegativeButton("Cancel", (d, w) -> show("Scan blank", "Use a blank card instead.", false))
+                .setPositiveButton("Replace", (d, w) -> {
                     synchronized (stateLock) { replacementId = uid; }
-                    show("Tap that same card again", "Only the selected card is approved for replacement. Source cards remain protected.", false);
+                    show("Scan that card again", "Lift it away, then hold it here again.", false);
                 }).show();
         });
     }
@@ -196,7 +197,7 @@ public final class MainActivity extends Activity implements NfcAdapter.ReaderCal
         synchronized (stateLock) {
             sourceMessage = null; sourceId = ""; playlist = ""; pendingId = ""; replacementId = "";
         }
-        show("Tap your genuine card", "Link the next playlist in Yoto, then scan the genuine MYO card here.", false);
+        show("Scan original", "Hold the linked genuine MYO card against your phone.", false);
     }
     private void vibrate(long ms) {
         Vibrator v = (Vibrator) getSystemService(VIBRATOR_SERVICE);
@@ -232,41 +233,40 @@ public final class MainActivity extends Activity implements NfcAdapter.ReaderCal
             root.setPadding(dp(24) + bars.left, dp(20) + bars.top, dp(24) + bars.right, dp(20) + bars.bottom);
             return insets;
         });
-        root.addView(text("YOTO CARD COPIER", 13, MINT, true));
-        root.addView(text("Two taps.\nOne new card.", 36, INK, true));
-        root.addView(text("Read the genuine MYO, then tap a blank.\nFormatting and verification happen automatically.", 16, MUTED, false));
+        TextView title = text("Card copier", 16, MUTED, false);
+        title.setGravity(Gravity.CENTER); root.addView(title);
         LinearLayout card = new LinearLayout(this); card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(22), dp(22), dp(22), dp(22)); card.setBackground(background(PANEL));
-        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, dp(24), 0, dp(16)); root.addView(card, cp);
-        phase = text("01 / READ SOURCE", 12, MINT, true); card.addView(phase);
-        heading = text("", 25, INK, true); heading.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE); card.addView(heading);
-        detail = text("", 16, MUTED, false); card.addView(detail);
-        source = text("", 14, MINT, false); card.addView(source);
-        count = text("", 14, MUTED, false); root.addView(count);
-        next = button("Next playlist", v -> reset()); root.addView(next, new LinearLayout.LayoutParams(-1, dp(56)));
-        yoto = button("Open Yoto", v -> {
-            Intent intent = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setPackage("com.yotoplay.yoto");
-            try { startActivity(intent); } catch (Exception e) { show("Open Yoto yourself", "Link the next playlist, then return here.", false); }
+        card.setGravity(Gravity.CENTER);
+        root.addView(card, new LinearLayout.LayoutParams(-1, 0, 1));
+        step = text("1", 44, MINT, true); step.setGravity(Gravity.CENTER);
+        GradientDrawable circle = background(PANEL); circle.setShape(GradientDrawable.OVAL); step.setBackground(circle);
+        LinearLayout.LayoutParams circleParams = new LinearLayout.LayoutParams(dp(112), dp(112));
+        circleParams.setMargins(0, dp(32), 0, dp(28)); card.addView(step, circleParams);
+        heading = text("", 32, INK, true); heading.setGravity(Gravity.CENTER);
+        heading.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE); card.addView(heading);
+        detail = text("", 17, MUTED, false); detail.setGravity(Gravity.CENTER); card.addView(detail);
+        next = button("Next playlist", v -> {
+            if (adapter != null && !adapter.isEnabled()) startActivity(new Intent(Settings.ACTION_NFC_SETTINGS));
+            else reset();
         });
-        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(56)); bp.setMargins(0, dp(12), 0, 0); root.addView(yoto, bp);
-        replace = button("NFC settings", v -> startActivity(new Intent(Settings.ACTION_NFC_SETTINGS)));
-        root.addView(replace, bp);
-        TextView note = text("Play the genuine card briefly on your Yoto to queue the audio. Generic cards may need the audio downloaded before playback.\n\nOffline app · no account · no network access", 13, MUTED, false);
-        note.setPadding(0, dp(24), 0, 0); root.addView(note);
+        root.addView(next, new LinearLayout.LayoutParams(-1, dp(56)));
         setContentView(scroll);
     }
     private void controls(boolean enabled) {
-        next.setEnabled(enabled); yoto.setEnabled(enabled); replace.setEnabled(enabled);
+        next.setEnabled(enabled);
     }
     private void show(String title, String body, boolean error) {
         runOnUiThread(() -> {
             if (isDestroyed()) return;
             heading.setText(title);
-            heading.setTextColor(error ? RED : title.equals("Copied & verified") || title.equals("Already verified") ? MINT : INK);
+            boolean success = title.equals("Copied");
+            heading.setTextColor(error ? RED : success ? MINT : INK);
             detail.setText(body);
-            phase.setText(sourceMessage == null ? "01 / READ SOURCE" : "02 / WRITE & VERIFY");
-            source.setText(playlist.isEmpty() ? "Source cards are never overwritten." : playlist + " · " + sourceMessage.length + " bytes");
-            count.setText(copies + (copies == 1 ? " card copied this session" : " cards copied this session"));
+            step.setText(error ? "!" : success ? "✓" : sourceMessage == null ? "1" : "2");
+            step.setTextColor(error ? RED : MINT);
+            boolean nfcOff = adapter != null && !adapter.isEnabled();
+            next.setText(nfcOff ? "Turn on NFC" : "Next playlist");
+            next.setVisibility(sourceMessage != null || nfcOff ? View.VISIBLE : View.INVISIBLE);
         });
     }
 }

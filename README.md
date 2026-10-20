@@ -8,11 +8,13 @@ This is an unofficial community tool, not affiliated with Yoto. Generic-card com
 
 1. In the official Yoto app, link the desired playlist to your genuine MYO card.
 2. Open this app and tap that genuine card. The app captures the exact NDEF record and protects that card from writes.
-3. Remove it and tap an unused generic card. Keep the card steady until **Copied & verified** appears. No separate format or verification tap is needed.
+3. Remove it and tap an unused generic card. Keep the card steady until **Copied** appears. No separate format or verification tap is needed.
 4. Play the genuine card briefly on each target Yoto player to queue the audio. Leave the player online, charging, idle, and without a card to finish downloads. Generic cards may be rejected until content is cached.
 5. Choose **Next playlist**, relink the genuine card in Yoto, and repeat. Restore the genuine card's usual playlist after finishing your batch.
 
 For an already-written destination, the app asks before replacement and requires a second tap of that specific card. Every source UID read by this installation stays protected. The app cannot authenticate whether a card is genuine: choose your genuine MYO as the source yourself.
+
+The screen shows one instruction at a time: **Scan original → Scan blank → Copied**. **Next playlist** is the only normal button and appears after reading the original. NFC settings are offered only if NFC is off.
 
 ## Scope and privacy
 
