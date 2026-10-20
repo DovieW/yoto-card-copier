@@ -40,7 +40,7 @@ public final class MainActivity extends Activity implements NfcAdapter.ReaderCal
     private String sourceId = "", playlist = "", pendingId = "", replacementId = "";
     private String lastWritten = "";
     private int copies;
-    private boolean active;
+    private volatile boolean active;
     private NfcAdapter adapter;
     private TextView phase, heading, detail, source, count;
     private Button next, yoto, replace;
