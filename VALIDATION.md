@@ -2,6 +2,12 @@
 
 The underlying manual source-link / destination-copy workflow worked on a Samsung Galaxy S25 Ultra and a Yoto Mini running OS 2.23.3. That predates this app and is not an app hardware test.
 
+## Version 0.1.2
+
+- A Samsung phone redirected a scanned source card to Yoto. Android NFC logs showed that the copier's reader-mode registration was rejected because the caller was not yet in the foreground.
+- Reader mode is re-registered when the activity becomes top-resumed or regains window focus. The activity also uses singleTop to avoid stacking duplicate instances on repeated launches.
+- Twenty memory-policy checks, Android build, and lint passed. Installed and launched on the affected Samsung; NFC service logs show reader-mode registration after launch. A fresh card scan after the fix is needed to verify the complete path.
+
 ## Version 0.1.1
 
 - Simplified the screen to one instruction: Scan original, Scan blank, or Copied. Removed the explanatory sections, source link, copy counter, and extra navigation buttons. Next playlist is hidden until an original has been read.

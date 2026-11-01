@@ -79,13 +79,27 @@ public final class MainActivity extends Activity implements NfcAdapter.ReaderCal
             if (heading.getText().toString().equals("Turn on NFC"))
                 show(sourceMessage == null ? "Scan original" : "Scan blank",
                     sourceMessage == null ? "Hold the linked genuine MYO card against your phone." : "Hold a blank card against your phone.", false);
-            Bundle options = new Bundle(); options.putInt(NfcAdapter.EXTRA_READER_PRESENCE_CHECK_DELAY, 150);
-            adapter.enableReaderMode(this, this,
-                    NfcAdapter.FLAG_READER_NFC_A | NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK
-                    | NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS, options);
+            enableReader();
         } else if (adapter != null) {
             show("Turn on NFC", "NFC is off.", true);
         }
+    }
+    private void enableReader() {
+        if (!active || adapter == null || !adapter.isEnabled()) return;
+        Bundle options = new Bundle();
+        options.putInt(NfcAdapter.EXTRA_READER_PRESENCE_CHECK_DELAY, 150);
+        adapter.enableReaderMode(this, this,
+                NfcAdapter.FLAG_READER_NFC_A | NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK
+                | NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS, options);
+    }
+    @Override public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        // Samsung may reject onResume registration before the UID is foreground.
+        if (hasFocus) enableReader();
+    }
+    @Override public void onTopResumedActivityChanged(boolean isTopResumedActivity) {
+        super.onTopResumedActivityChanged(isTopResumedActivity);
+        if (isTopResumedActivity) enableReader();
     }
     @Override protected void onPause() {
         active = false;
